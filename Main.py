@@ -3,87 +3,65 @@ import math
 
 # Auto-generated code below aims at helping you parse
 # the standard input according to the problem statement.
-class Point():
-    def __init__(self, x, y):
-        self.x = x 
-        self.y = y
 
-    def distance2(self, point):
-        return (self.x - point.x)*(self.x - point.x) + (self.y - point.y)*(self.y - point.y)
-
-    def distance(self, point):
-        return math.sqrt(self.distance2(point))    
-
-class Unit(Point):
-    def __init__(self, unit_id, unit_type, player, mass, radius):
-        super(Unit, self).__init__(x, y)
-        self.unit_id = unit_id
-        self.unit_type = unit_type
-        self.player = player
-        self.mass = mass
-        self.radius = radius
-        self.vx = 0
-        self.vy = 0
-        self.extra = 0
-        self.extra_2 = 0
-        self.score = 0
-
-    def update(self, x, y, vx, vy, extra, extra_2):
-        self.x = x
-        self.y = y
-        self.vx = vx
-        self.vy = vy
-        self.extra = extra
-        self.extra_2 = extra_2
+class Object():
     
-def sort_tankers(tankers, my_unit):
-    for t in tankers:
-        if t.extra == 0:
-            t.score = -1
-        else:
-            t.score = (1-t.distance(my_unit)/12000)
-            t.score += t.extra * 0.1
-    tankers.sort(key=lambda x: x.score, reverse=True) 
-    return tankers
-    
-def sort_wrecks(wrecks, me, enemy1, enemy2, pools):
-    reaper = me[0]
-    destroyer = me[1]
-    enemy1_reaper = enemy1[0]
-    enemy2_reaper = enemy2[0]
+    def __init__(self, input_string):
+        inputs = input_string.split()
+        self.unit_id = int(inputs[0])
+        self.unit_type = int(inputs[1])
+        self.player = int(inputs[2])
+        self.mass = float(inputs[3])
+        self.radius = int(inputs[4])
+        self.x = int(inputs[5])
+        self.y = int(inputs[6])
+        self.vx = int(inputs[7])
+        self.vy = int(inputs[8])
+        self.extra = int(inputs[9])
+        self.extra_2 = int(inputs[10])
 
-    enemy_reaper_distance_coeff = 0.3
+class Target(Object):
 
-    for w in wrecks:
-        w.score = 2*score_by_distance(w,reaper)
-        w.score -= score_by_distance(w, enemy1_reaper)*enemy_reaper_distance_coeff
-        w.score -= score_by_distance(w, enemy2_reaper)*enemy_reaper_distance_coeff
-        w.score += w.extra*0.05
-        w.score += score_by_distance(w, destroyer)*0.25
-        #todo add tar pool effect on score
-    wrecks.sort(key=lambda x: x.score, reverse=True)  
-    return wrecks
+    def __init__(self, input_string):
+        super().__init__(input_string)
+        self.owner = None
+        self.owner_dist = 0
 
-def score_by_distance(wreck, point):
-    return  (1-wreck.distance(point)/12000)
+class Agent():
 
-def sort_wrecks_by_dist(wrecks, unit):
-    for w in wrecks:
-       w.score = w.distance(unit)
-       
-    wrecks.sort(key=lambda x : x.score, reverse=False)
-    return wrecks
-    
-       
+    def __init__(self, pid, score, rage):
+        self.id = pid
+        self.score = score
+        self.rage = rage
+
+        self.reaper = None
+        self.destroyer = None
+        self.doof = None
+
+        self.close_wrecks = []
+
+    def append_car(self, obj):
+        if obj.unit_type == 0:
+            self.reaper = obj
+        elif obj.unit_type == 1:
+            self.destroyer = obj
+        elif obj.unit_type == 2:
+            self.doof = obj
+
+def dist_btw_obj(obj1, obj2):
+    return math.sqrt((obj2.x - obj1.x)**2 + (obj2.y - obj1.y)**2)
+
+def voronoi_diagram(atackers, targets):
+    for target in targets:
+        for atacker in atackers:
+            dist = dist_btw_obj(target, atacker)
+            if (target.owner == None) or (dist < target.owner_dist):
+                target.owner = atacker
+                target.owner_dist = dist
+
 # game loop
 while True:
-    my_units = []
-    enemy1_units = []
-    enemy2_units = []
-    wrecks = []
-    tankers = []
-    tar_pools = []
-
+    
     my_score = int(input())
     enemy_score_1 = int(input())
     enemy_score_2 = int(input())
@@ -91,88 +69,66 @@ while True:
     enemy_rage_1 = int(input())
     enemy_rage_2 = int(input())
     unit_count = int(input())
-    for i in range(unit_count):
-        unit_id, unit_type, player, mass, radius, x, y, vx, vy, extra, extra_2 = input().split()
-        unit_id = int(unit_id)
-        unit_type = int(unit_type)
-        player = int(player)
-        mass = float(mass)
-        radius = int(radius)
-        x = int(x)
-        y = int(y)
-        vx = int(vx)
-        vy = int(vy)
-        extra = int(extra)
-        extra_2 = int(extra_2)
-
-        unit = Unit(unit_id, unit_type, player, mass, radius)
-        unit.update(x, y, vx, vy, extra, extra_2)
- 
-        if player == 0:
-            my_units.append(unit)
-        elif player == 1:
-            enemy1_units.append(unit)
-        elif player == 2:
-            enemy2_units.append(unit)
-        else:
-            if unit_type == 4:
-                wrecks.append(unit)
-            elif unit_type == 3:
-                tankers.append(unit)
-            elif unit_type == 5:
-                tar_pools.append(unit)
-
-    my_units.sort(key=lambda x: x.unit_id, reverse=False)
-    enemy1_units.sort(key=lambda x: x.unit_id, reverse=False)
-    enemy2_units.sort(key=lambda x: x.unit_id, reverse=False)
-
-    reaper = my_units[0]
-    destr = my_units[1]
-    doof = my_units[2]
-
-    reaper_target = None
-    tanker_target = None
-    doof_target = None
-
-    if wrecks == []:
-        reaper_target = my_units[1]
-        reaper_msg = 'DESTR'
-    else:
-        wrecks = sort_wrecks(wrecks, my_units, enemy1_units, enemy2_units, tar_pools)
-        reaper_target = wrecks[0]
-        reaper_msg = reaper_target.score
     
-    if tankers == []:
-        tanker_target = Point(0,0)
-        tanker_msg = 'NO TARGET'
-    else:
-        tankers = sort_tankers(tankers, destr)
-        tanker_target = tankers[0]
-        tanker_msg = tanker_target.extra
-        
-    if enemy_score_1 >= enemy_score_2:
-        main_enemy = enemy1_units[0]
-        wrecks = sort_wrecks_by_dist(wrecks, main_enemy)
-        if wrecks != [] :
-            doof_target = wrecks[0]
-        else:
-            doof_target = main_enemy
-        doof_msg = 'ONE'
-    else:
-        main_enemy = enemy1_units[0]
-        wrecks = sort_wrecks_by_dist(wrecks, main_enemy)
-        doof_target = wrecks[0]
-        doof_msg = 'TWO'
+    me = Agent(0, my_score, my_rage)
+    enemy1 = Agent(1, enemy_score_1, enemy_rage_1)
+    enemy2 = Agent(2, enemy_score_2, enemy_rage_2)
 
+    wrecks = []
+    tankers = []
+    oil_fields = []
+    reapers = []
+    destroyers = []
+    doofs = []
+    for i in range(unit_count):
+        input_string = input()
+        obj = Object(input_string)
+        if obj.player == 0:
+            me.append_car(obj)
+        elif obj.player == 1:
+            enemy1.append_car(obj)
+        elif obj.player == 2:
+            enemy2.append_car(obj)
         
-    print(reaper_target.x - reaper.vx, reaper_target.y - reaper.vy, 300, reaper_msg)
-    if my_rage >= 60 and int(destr.distance(Point(doof_target.x - doof_target.vx, doof_target.y - doof_target.vy))) <= 2000:
-        print('SKILL', main_enemy.x-main_enemy.vx, main_enemy.y-main_enemy.vy)
-        my_rage -= 60
+        
+        if obj.unit_type == 0:
+            reapers.append(obj)
+        elif obj.unit_type == 1:
+            destroyers.append(obj)
+        elif obj.unit_type == 3:
+            tankers.append(Target(input_string))
+        elif obj.unit_type == 4:
+            wrecks.append(Target(input_string))
+
+    voronoi_diagram(reapers, wrecks)
+    voronoi_diagram(destroyers, tankers)
+
+    my_wrecks = [x for x in wrecks if x.owner.player == 0]
+    rspeed = 300
+    if my_wrecks != []:
+        my_wrecks = sorted(my_wrecks, key = lambda x: x.owner_dist, reverse = False)
+        if my_wrecks[0].owner_dist <= my_wrecks[0].radius:
+            rspeed = 0
+            rtarget = my_wrecks[0]
+        else:
+            my_wrecks = sorted(my_wrecks, key = lambda x: x.extra, reverse = True)
+            rtarget = my_wrecks[0]
     else:
-        print(tanker_target.x - destr.vx, tanker_target.y - destr.vy, 300, tanker_msg)
-      
-    if my_rage >= 30 and doof_target.extra > 3 and doof.distance(doof_target) <= 2*doof_target.radius and doof.distance(main_enemy) < 3*doof_target.radius:
-        print('SKILL', doof_target.x, doof_target.y)
+        rtarget = me.destroyer
+    
+    my_tankers = [x for x in tankers if x.owner.player == 0]
+    if my_tankers != []:
+        my_tankers = sorted(my_tankers, key = lambda x: x.extra, reverse = True)
+        dtarget = my_tankers[0]
     else:
-        print(doof_target.x - doof.vx, doof_target.y - doof.vy, 300, doof_msg)
+        dtarget = me.destroyer
+    
+    if enemy1.score > enemy2.score:
+        ftarget = enemy1.reaper
+    else:
+        ftarget = enemy2.reaper
+    # Write an action using print
+    # To debug: print("Debug messages...", file=sys.stderr, flush=True)
+    print(f'{rtarget.x} {rtarget.y} {rspeed}')
+    print(f'{dtarget.x} {dtarget.y} 300')
+    print(f'{ftarget.x} {ftarget.y} 300')
