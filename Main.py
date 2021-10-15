@@ -3,6 +3,10 @@ import math
 
 # Auto-generated code below aims at helping you parse
 # the standard input according to the problem statement.
+class Point():
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
 class Object():
     
@@ -19,6 +23,9 @@ class Object():
         self.vy = int(inputs[8])
         self.extra = int(inputs[9])
         self.extra_2 = int(inputs[10])
+    
+    def distance(self, point):
+        return math.sqrt((self.x - point.x)*(self.x - point.x) + (self.y - point.y)*(self.y - point.y))
 
 class Target(Object):
 
@@ -26,6 +33,28 @@ class Target(Object):
         super().__init__(input_string)
         self.owner = None
         self.owner_dist = 0
+
+class Looter(Object):
+    def __init__(self, input_string):
+        super().__init__(input_string)
+
+    def simulate_movement(self, power, target):
+        distance = dist_btw_obj(self, target)
+
+        coef = power/self.mass/ distance
+        
+        vx = self.vx + (target.x - self.x) * coef
+        vy = self.vy  + (target.y - self.y) * coef
+
+        return Point(self.x + vx, self.y + vy)
+    
+    def get_friction(self):
+        if self.unit_type == 0:
+            return 0.2
+        elif self.unit_type == 1:
+            return 0.3
+        elif self.unit_type == 2:
+            return 0.25
 
 class Agent():
 
@@ -40,13 +69,13 @@ class Agent():
 
         self.close_wrecks = []
 
-    def append_car(self, obj):
-        if obj.unit_type == 0:
-            self.reaper = obj
-        elif obj.unit_type == 1:
-            self.destroyer = obj
-        elif obj.unit_type == 2:
-            self.doof = obj
+    def append_looter(self, looter):
+        if looter.unit_type == 0:
+            self.reaper = looter
+        elif looter.unit_type == 1:
+            self.destroyer = looter
+        elif looter.unit_type == 2:
+            self.doof = looter
 
 def dist_btw_obj(obj1, obj2):
     return math.sqrt((obj2.x - obj1.x)**2 + (obj2.y - obj1.y)**2)
@@ -84,11 +113,11 @@ while True:
         input_string = input()
         obj = Object(input_string)
         if obj.player == 0:
-            me.append_car(obj)
+            me.append_looter(Looter(input_string))
         elif obj.player == 1:
-            enemy1.append_car(obj)
+            enemy1.append_looter(Looter(input_string))
         elif obj.player == 2:
-            enemy2.append_car(obj)
+            enemy2.append_looter(Looter(input_string))
         
         
         if obj.unit_type == 0:
@@ -103,18 +132,13 @@ while True:
     voronoi_diagram(reapers, wrecks)
     voronoi_diagram(destroyers, tankers)
 
-    my_wrecks = [x for x in wrecks if x.owner.player == 0]
-    rspeed = 300
-    if my_wrecks != []:
-        my_wrecks = sorted(my_wrecks, key = lambda x: x.owner_dist, reverse = False)
-        if my_wrecks[0].owner_dist <= my_wrecks[0].radius:
-            rspeed = 0
-            rtarget = my_wrecks[0]
-        else:
-            my_wrecks = sorted(my_wrecks, key = lambda x: x.extra, reverse = True)
-            rtarget = my_wrecks[0]
-    else:
-        rtarget = me.destroyer
+    rtarget = None
+    closest_dist = 0
+    for wreck in wrecks:
+        distance = wreck.distance(me.reaper)
+        if (rtarget == None) or (closest_dist > distance):
+            rtarget = wreck
+            closest_dist = distance
     
     my_tankers = [x for x in tankers if x.owner.player == 0]
     if my_tankers != []:
@@ -127,6 +151,20 @@ while True:
         ftarget = enemy1.reaper
     else:
         ftarget = enemy2.reaper
+   
+    rspeed = 300
+    if rtarget == None:
+        rtarget = me.destroyer
+
+    dist = 100000
+    for throtle in range(0, 300, 20):
+        p = me.reaper.simulate_movement(throtle, rtarget)
+        sim_dist = rtarget.distance(p) 
+        if dist > sim_dist:
+            print(f'{p.x} {p.y} sim_dist {sim_dist} power {throtle}', file=sys.stderr, flush=True)
+            dist = sim_dist
+            rspeed = throtle
+   
     # Write an action using print
     # To debug: print("Debug messages...", file=sys.stderr, flush=True)
     print(f'{rtarget.x} {rtarget.y} {rspeed}')
