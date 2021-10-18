@@ -7,18 +7,34 @@ class Point():
     def __init__(self, x, y):
         self.x = x
         self.y = y
+    
+    def __mul__(self, other):
+        x = self.x * other
+        y = self.y * other
+        return Point(x, y)
+    
+    def __sub__(self, other):
+        x = self.x - other.x
+        y = self.y - other.y
+        return Point(x, y)
+    
+    def __add__(self, other):
+        x = self.x + other.x
+        y = self.y + other.y
+        return Point(x, y)
 
-class Object():
+class Object(Point):
     
     def __init__(self, input_string):
         inputs = input_string.split()
+        super().__init__(int(inputs[5]), int(inputs[6]))
         self.unit_id = int(inputs[0])
         self.unit_type = int(inputs[1])
         self.player = int(inputs[2])
         self.mass = float(inputs[3])
         self.radius = int(inputs[4])
-        self.x = int(inputs[5])
-        self.y = int(inputs[6])
+        #self.x = int(inputs[5])
+        #self.y = int(inputs[6])
         self.vx = int(inputs[7])
         self.vy = int(inputs[8])
         self.extra = int(inputs[9])
@@ -39,14 +55,14 @@ class Looter(Object):
         super().__init__(input_string)
 
     def simulate_movement(self, power, target):
-        distance = dist_btw_obj(self, target)
+        dist = self.distance(Point(target.x - self.vx, target.y - self.vy))
 
-        coef = power/self.mass/ distance
+        coef = power/self.mass/ dist
         
-        vx = self.vx + (target.x - self.x) * coef
-        vy = self.vy  + (target.y - self.y) * coef
+        vx = math.floor(self.vx + (target.x - self.vx - self.x) * coef)
+        vy = math.floor(self.vy  + (target.y - self.vy - self.y) * coef)
 
-        return Point(self.x + vx, self.y + vy)
+        return Point(vx, vy)
     
     def get_friction(self):
         if self.unit_type == 0:
@@ -109,6 +125,7 @@ while True:
     reapers = []
     destroyers = []
     doofs = []
+    coliders = []
     for i in range(unit_count):
         input_string = input()
         obj = Object(input_string)
@@ -122,10 +139,13 @@ while True:
         
         if obj.unit_type == 0:
             reapers.append(obj)
+            coliders.append(obj)
         elif obj.unit_type == 1:
             destroyers.append(obj)
+            coliders.append(obj)
         elif obj.unit_type == 3:
             tankers.append(Target(input_string))
+            coliders.append(obj)
         elif obj.unit_type == 4:
             wrecks.append(Target(input_string))
 
@@ -156,17 +176,43 @@ while True:
     if rtarget == None:
         rtarget = me.destroyer
 
-    dist = 100000
-    for throtle in range(0, 300, 20):
-        p = me.reaper.simulate_movement(throtle, rtarget)
-        sim_dist = rtarget.distance(p) 
-        if dist > sim_dist:
-            print(f'{p.x} {p.y} sim_dist {sim_dist} power {throtle}', file=sys.stderr, flush=True)
-            dist = sim_dist
-            rspeed = throtle
-   
+    max_ahead = 2
+    simv = me.reaper.simulate_movement(300, rtarget)
+    #print(f'{simv.x} {simv.y}', file=sys.stderr, flush=True)
+    ahead = simv*max_ahead
+    #print(f'{ahead.x} {ahead.y}', file=sys.stderr, flush=True)
+    ahead2 = simv*(max_ahead/2)
+    #print(f'{ahead2.x} {ahead2.y}', file=sys.stderr, flush=True)
+    obstacles_in_path = []
+    for obstacle in coliders:
+        if (obstacle.player == 0) and (obstacle.unit_type == 0):
+            continue
+        
+        if (obstacle.distance(me.reaper + ahead) <= obstacle.radius) or (obstacle.distance(me.reaper + ahead2) <= obstacle.radius*1.5):
+            obstacles_in_path.append(obstacle)
+    
+    avoid_this = None
+    if obstacles_in_path != []:
+        for obstacle in obstacles_in_path:
+            if (avoid_this == None) or (obstacle.distance(me.reaper) < avoid_this.distance(me.reaper)):
+                avoid_this = obstacle
+
+    print(f'target {rtarget.unit_id} ', file=sys.stderr)
+    print(f'ahead  {(me.reaper + ahead).x} {(me.reaper + ahead).y}' , file=sys.stderr)
+    print(f'ahead2 {(me.reaper + ahead2).x} {(me.reaper + ahead2).y}' , file=sys.stderr)
+    
+    avoidance_force = Point(0,0)
+    if avoid_this != None:
+        print(f'avoid : {avoid_this.unit_id}', file= sys.stderr, flush= True)
+        avoidance_force = me.reaper + ahead - Point(avoid_this.x, avoid_this.y)
+        MAX_AVOID_FORCE = 2
+        avoidance_force = avoidance_force * MAX_AVOID_FORCE
+
+    steering_vector = Point(-me.reaper.vx, -me.reaper.vy)
+    if rtarget.radius < closest_dist:
+        steering_vector = steering_vector + avoidance_force
     # Write an action using print
     # To debug: print("Debug messages...", file=sys.stderr, flush=True)
-    print(f'{rtarget.x} {rtarget.y} {rspeed}')
-    print(f'{dtarget.x} {dtarget.y} 300')
-    print(f'{ftarget.x} {ftarget.y} 300')
+    print(f'{rtarget.x + steering_vector.x} {rtarget.y + steering_vector.y} {300}')
+    print(f'{dtarget.x - me.destroyer.vx} {dtarget.y - me.destroyer.vy} 300')
+    print(f'{ftarget.x - me.doof.vx} {ftarget.y - me.doof.vy} 300')
