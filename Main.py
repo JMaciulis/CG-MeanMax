@@ -155,6 +155,16 @@ while True:
     rtarget = None
     closest_dist = 0
     for wreck in wrecks:
+        evaluate = True
+        for obstacle in coliders:
+            if (obstacle.player != 0) and (obstacle.unit_type != 0):
+                if (wreck.distance(obstacle) < wreck.radius): # and (wreck.distance(me.reaper)) > wreck.radius:
+                    evaluate = False
+                    continue
+
+        if not evaluate:
+            continue
+            
         distance = wreck.distance(me.reaper)
         if (rtarget == None) or (closest_dist > distance):
             rtarget = wreck
@@ -205,7 +215,7 @@ while True:
     if avoid_this != None:
         print(f'avoid : {avoid_this.unit_id}', file= sys.stderr, flush= True)
         avoidance_force = me.reaper + ahead - Point(avoid_this.x, avoid_this.y)
-        MAX_AVOID_FORCE = 2
+        MAX_AVOID_FORCE = 4
         avoidance_force = avoidance_force * MAX_AVOID_FORCE
 
     steering_vector = Point(-me.reaper.vx, -me.reaper.vy)
