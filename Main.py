@@ -43,6 +43,57 @@ class Object(Point):
     def distance(self, point):
         return math.sqrt((self.x - point.x)*(self.x - point.x) + (self.y - point.y)*(self.y - point.y))
 
+    def get_collision(self, u):
+        # Check instant collision
+        if (self.distance(u) <= self.radius + u.radius):
+            return Collision(0, self, u)
+
+        # Both units are motionless
+        if (self.vx == 0.0 and self.vy == 0.0 and u.vx == 0.0 and u.vy == 0.0) :
+            return False
+        
+
+        # Change referencial
+        # Unit u is not at point (0, 0) with a speed vector of (0, 0)
+        x2 = self.x - u.x
+        y2 = self.y - u.y
+        r2 = self.radius + u.radius
+        vx2 = self.vx - u.vx
+        vy2 = self.vy - u.vy
+
+        # Resolving: sqrt((x + t*vx)^2 + (y + t*vy)^2) = radius <=> t^2*(vx^2 + vy^2) + t*2*(x*vx + y*vy) + x^2 + y^2 - radius^2 = 0
+        # at^2 + bt + c = 0;
+        # a = vx^2 + vy^2
+        # b = 2*(x*vx + y*vy)
+        # c = x^2 + y^2 - radius^2 
+
+        a = vx2 * vx2 + vy2 * vy2
+
+        if (a <= 0.0):
+            return False
+        
+
+        b = 2.0 * (x2 * vx2 + y2 * vy2)
+        c = x2 * x2 + y2 * y2 - r2 * r2
+        delta = b * b - 4.0 * a * c
+
+        if (delta < 0.0) :
+            return False
+
+        t = (-b - math.sqrt(delta)) / (2.0 * a)
+
+        if (t <= 0.0) :
+            return False
+
+        return Collision(t, self, u)
+
+class Collision():
+
+    def __init__(self, t, a, b):
+        self.a = a
+        self.b = b
+        self.t = t
+
 class Target(Object):
 
     def __init__(self, input_string):
@@ -194,31 +245,29 @@ while True:
     ahead2 = simv*(max_ahead/2)
     #print(f'{ahead2.x} {ahead2.y}', file=sys.stderr, flush=True)
     obstacles_in_path = []
+    avoid_this = None
+    old_v = Point(me.reaper.vx, me.reaper.vy)
+    me.reaper.vx = simv.x
+    me.reaper.vy = simv.y
+
     for obstacle in coliders:
         if (obstacle.player == 0) and (obstacle.unit_type == 0):
             continue
         
-        if (obstacle.distance(me.reaper + ahead) <= obstacle.radius) or (obstacle.distance(me.reaper + ahead2) <= obstacle.radius*1.5):
-            obstacles_in_path.append(obstacle)
+        collision = me.reaper.get_collision(obstacle)
+        if collision != False and collision.t <= 1 and (avoid_this == None or collision.t < avoid_this.t):
+            avoid_this = collision
     
-    avoid_this = None
-    if obstacles_in_path != []:
-        for obstacle in obstacles_in_path:
-            if (avoid_this == None) or (obstacle.distance(me.reaper) < avoid_this.distance(me.reaper)):
-                avoid_this = obstacle
-
     print(f'target {rtarget.unit_id} ', file=sys.stderr)
-    print(f'ahead  {(me.reaper + ahead).x} {(me.reaper + ahead).y}' , file=sys.stderr)
-    print(f'ahead2 {(me.reaper + ahead2).x} {(me.reaper + ahead2).y}' , file=sys.stderr)
     
     avoidance_force = Point(0,0)
     if avoid_this != None:
-        print(f'avoid : {avoid_this.unit_id}', file= sys.stderr, flush= True)
-        avoidance_force = me.reaper + ahead - Point(avoid_this.x, avoid_this.y)
+        print(f'avoid : {avoid_this.b.unit_id}', file= sys.stderr, flush= True)
+        avoidance_force = me.reaper + simv - Point(avoid_this.b.x, avoid_this.b.y)
         MAX_AVOID_FORCE = 4
         avoidance_force = avoidance_force * MAX_AVOID_FORCE
 
-    steering_vector = Point(-me.reaper.vx, -me.reaper.vy)
+    steering_vector = Point(-old_v.x, -old_v.y)
     if rtarget.radius < closest_dist:
         steering_vector = steering_vector + avoidance_force
     # Write an action using print
